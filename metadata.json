@@ -1,0 +1,6 @@
+{
+  "name": "Crossword Solver",
+  "description": "Offline crossword solving Android app with anagram solver, blank letter word suggestion, and built-in definition dictionary.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
