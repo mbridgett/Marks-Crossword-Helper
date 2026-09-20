@@ -3771,5 +3771,31 @@
     "defs": [
       "A person who uses or operates something, such as a computer or application."
     ]
+  },
+  "STARTLING": {
+    "pos": "adj",
+    "defs": [
+      "Causing sudden surprise, astonishment, alarm, or wonder; remarkable; shocking; unexpected."
+    ],
+    "syns": [
+      "astounding",
+      "shocking",
+      "alarming",
+      "surprising",
+      "stunning"
+    ]
+  },
+  "OPTIMISTIC": {
+    "pos": "adj",
+    "defs": [
+      "Hopeful and confident about the future; tending to expect favorable outcomes."
+    ],
+    "syns": [
+      "hopeful",
+      "sanguine",
+      "positive",
+      "buoyant",
+      "upbeat"
+    ]
   }
 }

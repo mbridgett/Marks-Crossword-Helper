@@ -89,6 +89,7 @@ export default function App() {
                 initialRack={anagramRack}
                 onSelectWord={(word) => setSelectedWord(word)}
                 onWordSavedChange={refreshSavedCount}
+                onNavigateTab={handleNavigateTab}
               />
             </motion.div>
           )}
@@ -106,6 +107,7 @@ export default function App() {
                 initialPattern={blankPattern}
                 onSelectWord={(word) => setSelectedWord(word)}
                 onWordSavedChange={refreshSavedCount}
+                onNavigateTab={handleNavigateTab}
               />
             </motion.div>
           )}

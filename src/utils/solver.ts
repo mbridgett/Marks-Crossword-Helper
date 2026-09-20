@@ -12,6 +12,14 @@ export interface AnagramOptions {
 
 export interface BlankOptions {
   excludeLetters?: string;
+  exactLength?: number;
+}
+
+export interface NearLengthMatchGroup {
+  length: number;
+  pattern: string;
+  count: number;
+  sampleWords: string[];
 }
 
 /**
@@ -108,7 +116,8 @@ export function solveAnagrams(
 }
 
 /**
- * Solve crossword blanks/patterns like "C?O?S", "CR..S", "C_O_S"
+ * Solve crossword blanks/patterns like "C?O?S", "CR..S", "C_O_S", "S?A*G"
+ * Supports ?, ., _ for single letter blanks, and * for 0+ letter wildcards.
  */
 export function solveBlanks(
   patternInput: string,
@@ -118,14 +127,25 @@ export function solveBlanks(
   const normalizedPattern = patternInput.toUpperCase().trim();
   if (!normalizedPattern) return [];
 
-  // Pattern can use ?, ., or _ as blanks
-  // Replace all blanks with '.'
-  const regexPattern = normalizedPattern.replace(/[?_]/g, '.');
-  const targetLength = regexPattern.length;
+  // Pattern can use ?, ., or _ as blanks, and * as multi-letter wildcard
+  const hasStar = normalizedPattern.includes('*');
+  const targetLength = normalizedPattern.length;
 
   const excludedSet = new Set(
     (options.excludeLetters || '').toUpperCase().replace(/[^A-Z]/g, '').split('')
   );
+
+  let regexPattern = '';
+  for (let i = 0; i < normalizedPattern.length; i++) {
+    const ch = normalizedPattern[i];
+    if (ch === '?' || ch === '.' || ch === '_') {
+      regexPattern += '[A-Z]';
+    } else if (ch === '*') {
+      regexPattern += '[A-Z]*';
+    } else if (ch >= 'A' && ch <= 'Z') {
+      regexPattern += ch;
+    }
+  }
 
   let regex: RegExp;
   try {
@@ -137,7 +157,14 @@ export function solveBlanks(
   const results: BlankMatchResult[] = [];
 
   for (const word of words) {
-    if (word.length !== targetLength) continue;
+    if (!hasStar) {
+      if (options.exactLength ? word.length !== options.exactLength : word.length !== targetLength) {
+        continue;
+      }
+    } else {
+      if (word.length < 2 || word.length > 15) continue;
+      if (options.exactLength && word.length !== options.exactLength) continue;
+    }
 
     // Excluded letters check
     if (excludedSet.size > 0) {
@@ -155,7 +182,7 @@ export function solveBlanks(
     if (regex.test(word)) {
       results.push({
         word,
-        length: targetLength,
+        length: word.length,
         pattern: normalizedPattern,
         score: calculateWordScore(word)
       });
@@ -166,4 +193,53 @@ export function solveBlanks(
   results.sort((a, b) => a.word.localeCompare(b.word));
 
   return results;
+}
+
+/**
+ * Check if nearby patterns (e.g. 1 fewer or 1 more ? wildcard) match words like STARTLING
+ * when a user typed e.g. S?A??????G (10 chars with 7 blanks) instead of S?A?????G (9 chars with 6 blanks).
+ */
+export function getNearLengthPatternMatches(
+  patternInput: string,
+  words: string[]
+): NearLengthMatchGroup[] {
+  const clean = patternInput.toUpperCase().trim().replace(/[^A-Z?._*]/g, '');
+  if (!clean || clean.length < 3) return [];
+
+  const groups: NearLengthMatchGroup[] = [];
+  const currentLength = clean.length;
+
+  // 1. If pattern has 2 or more ? in a row, try with 1 fewer ? (shorter length)
+  if (clean.includes('??')) {
+    const shorterPattern = clean.replace('??', '?');
+    if (shorterPattern.length !== currentLength) {
+      const shorterMatches = solveBlanks(shorterPattern, words);
+      if (shorterMatches.length > 0) {
+        groups.push({
+          length: shorterPattern.length,
+          pattern: shorterPattern,
+          count: shorterMatches.length,
+          sampleWords: shorterMatches.map((m) => m.word).slice(0, 8),
+        });
+      }
+    }
+  }
+
+  // 2. Try with 1 more ? (longer length) if pattern has at least one ?
+  if (clean.includes('?') && clean.length <= 14) {
+    const longerPattern = clean.replace('?', '??');
+    if (longerPattern.length !== currentLength) {
+      const longerMatches = solveBlanks(longerPattern, words);
+      if (longerMatches.length > 0) {
+        groups.push({
+          length: longerPattern.length,
+          pattern: longerPattern,
+          count: longerMatches.length,
+          sampleWords: longerMatches.map((m) => m.word).slice(0, 8),
+        });
+      }
+    }
+  }
+
+  return groups;
 }

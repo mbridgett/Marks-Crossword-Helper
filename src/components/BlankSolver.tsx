@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Grid3X3, X, SlidersHorizontal, BookOpen, Bookmark, BookmarkCheck, Copy, RotateCcw, Sparkles } from 'lucide-react';
-import { BlankMatchResult } from '../types';
-import { solveBlanks } from '../utils/solver';
+import { Grid3X3, X, SlidersHorizontal, BookOpen, Bookmark, BookmarkCheck, Copy, RotateCcw, Sparkles, Shuffle, ArrowRight } from 'lucide-react';
+import { BlankMatchResult, SolverTab } from '../types';
+import { solveBlanks, getNearLengthPatternMatches } from '../utils/solver';
 import { isWordSaved, toggleSaveWord, addHistoryItem } from '../utils/dictionaryService';
 
 interface BlankSolverProps {
@@ -9,6 +9,7 @@ interface BlankSolverProps {
   initialPattern?: string;
   onSelectWord: (word: string) => void;
   onWordSavedChange?: () => void;
+  onNavigateTab?: (tab: SolverTab, query?: string) => void;
 }
 
 export const BlankSolver: React.FC<BlankSolverProps> = ({
@@ -16,6 +17,7 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
   initialPattern = 'C?O??',
   onSelectWord,
   onWordSavedChange,
+  onNavigateTab,
 }) => {
   const [wordLength, setWordLength] = useState<number>(() => {
     return initialPattern ? Math.max(3, Math.min(15, initialPattern.length)) : 5;
@@ -31,6 +33,10 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
       }
     }
     return arr;
+  });
+
+  const [patternInput, setPatternInput] = useState<string>(() => {
+    return initialPattern ? initialPattern.toUpperCase() : 'C?O??';
   });
 
   const [activeTileIndex, setActiveTileIndex] = useState<number>(0);
@@ -58,6 +64,49 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
   const currentPattern = useMemo(() => {
     return tiles.map((ch) => (ch ? ch : '?')).join('');
   }, [tiles]);
+
+  // Keep patternInput text in sync with tiles
+  useEffect(() => {
+    setPatternInput(currentPattern);
+  }, [currentPattern]);
+
+  // Handle direct typing in the Quick Pattern Input Bar
+  const handlePatternInputChange = (rawVal: string) => {
+    const clean = rawVal.toUpperCase().replace(/[^A-Z?*._]/g, '');
+    setPatternInput(clean);
+
+    if (clean.length >= 2 && clean.length <= 15) {
+      setWordLength(clean.length);
+      const newTiles = Array(clean.length).fill('');
+      for (let i = 0; i < clean.length; i++) {
+        const ch = clean[i];
+        if (ch >= 'A' && ch <= 'Z') {
+          newTiles[i] = ch;
+        }
+      }
+      setTiles(newTiles);
+    }
+  };
+
+  // Near length pattern matches (e.g. if user entered S?A??????G with 10 letters, detect 9-letter STARTLING)
+  const nearLengthGroups = useMemo(() => {
+    const hasAtLeastOneLetter = tiles.some((t) => t !== '');
+    if (!hasAtLeastOneLetter) return [];
+    return getNearLengthPatternMatches(currentPattern, words);
+  }, [currentPattern, words, tiles]);
+
+  const handleApplyPattern = (pat: string) => {
+    const len = Math.max(2, Math.min(15, pat.length));
+    setWordLength(len);
+    const newTiles = Array(len).fill('');
+    for (let i = 0; i < len; i++) {
+      const ch = pat[i].toUpperCase();
+      if (ch >= 'A' && ch <= 'Z') newTiles[i] = ch;
+    }
+    setTiles(newTiles);
+    setPatternInput(pat.toUpperCase());
+    setActiveTileIndex(0);
+  };
 
   // Execute solver
   const results = useMemo(() => {
@@ -174,13 +223,50 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
               Crossword Blank Pattern
             </span>
           </div>
-          <button
-            onClick={handleClearAll}
-            className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Clear
-          </button>
+          <div className="flex items-center gap-2.5">
+            {onNavigateTab && currentPattern.replace(/[^A-Z]/g, '').length >= 2 && (
+              <button
+                onClick={() => onNavigateTab('anagram', currentPattern)}
+                className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition"
+                title="Search anagrams of these letters"
+              >
+                <Shuffle className="w-3 h-3" />
+                Anagrams
+              </button>
+            )}
+            <button
+              onClick={handleClearAll}
+              className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Pattern Input Box */}
+        <div className="mb-3">
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              value={patternInput}
+              onChange={(e) => handlePatternInputChange(e.target.value)}
+              placeholder="Type or paste pattern (e.g. S?A??????G, C?O??, S?A*G)"
+              className="w-full bg-slate-800/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-mono font-bold tracking-widest text-white placeholder:text-slate-500 placeholder:font-sans placeholder:font-normal placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition uppercase"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck="false"
+            />
+            {patternInput && (
+              <button
+                onClick={handleClearAll}
+                className="absolute right-2.5 p-1 text-slate-400 hover:text-white rounded-md transition"
+                title="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Word Length Selector (Pills + Stepper) */}
@@ -322,7 +408,7 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
             <Sparkles className="w-3 h-3 text-sky-400" />
             Try:
           </span>
-          {['C?O??', 'B?A?K', '??E??', 'P??ZL?', 'T?A?E?'].map((preset) => (
+          {['S?A?????G', 'C?O??', 'B?A?K', '??E??', 'P??ZL?', 'T?A?E?'].map((preset) => (
             <button
               key={preset}
               onClick={() => setPreset(preset)}
@@ -333,6 +419,38 @@ export const BlankSolver: React.FC<BlankSolverProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Near-Length Pattern Match Suggestion Banner (e.g. 9-letter STARTLING for S?A??????G) */}
+      {nearLengthGroups.length > 0 && (
+        <div className="space-y-2">
+          {nearLengthGroups.map((group) => (
+            <div
+              key={group.pattern}
+              className="p-3 rounded-xl bg-sky-950/40 border border-sky-800/60 text-xs text-sky-200 flex flex-wrap items-center justify-between gap-2.5 shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>
+                  Looking for <strong>{group.length}-letter</strong> words like{' '}
+                  <strong className="text-white underline decoration-sky-400 underline-offset-2">
+                    {group.sampleWords.find((w) => w === 'STARTLING') || group.sampleWords[0]}
+                  </strong>? Found {group.count} words matching{' '}
+                  <code className="font-mono font-bold bg-sky-900/60 text-sky-300 px-1 py-0.5 rounded">
+                    {group.pattern}
+                  </code>
+                </span>
+              </div>
+              <button
+                onClick={() => handleApplyPattern(group.pattern)}
+                className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex items-center gap-1 transition shrink-0 active:scale-95"
+              >
+                <span>Switch to {group.length} Letters</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Results Section */}
       <div>
